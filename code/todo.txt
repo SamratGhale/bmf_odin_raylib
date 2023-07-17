@@ -1,0 +1,9 @@
+Game Mode free camera? for debug?
+
+player/entity movement
+Use raylib's collision of models and (tiles)?
+
+
+BUGS:
+when player moves from one chunk to another a memory gets allocated
+but it dosen't happen to the same chunk again and again
