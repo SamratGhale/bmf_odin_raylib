@@ -1,6 +1,7 @@
 package main
 
 import rl "vendor:raylib"
+import "core:fmt"
 import "core:math/linalg"
 
 LowEntity :: struct {
@@ -32,11 +33,10 @@ clear_flag :: #force_inline proc(val: ^u32, flag: u32) {
 	val^ &= ~flag
 }
 
-
 FaceDirection :: enum {
 	UP,
-	DOWN,
 	LEFT,
+	DOWN,
 	RIGHT,
 }
 
@@ -65,6 +65,7 @@ EntityType::enum
 	entity_type_player,
 	entity_type_enemy,
 	entity_type_wall,
+	entity_type_house,
 };
 
 
@@ -98,6 +99,18 @@ add_wall :: proc(game_state: ^GameState, pos: WorldPos, model: ^rl.Model)->AddEn
 	chunk := get_world_chunk(game_state.world, pos.chunk)
 
 	result := add_low_entity(game_state, .entity_type_wall, pos)
+	result.low.sim.width    = 1.0
+	result.low.sim.height   = 1.0
+	result.low.sim.collides = true
+	result.low.sim.model    = model 
+
+	return result;
+}
+
+add_house:: proc(game_state: ^GameState, pos: WorldPos, model: ^rl.Model)->AddEntityResult{
+	chunk := get_world_chunk(game_state.world, pos.chunk)
+
+	result := add_low_entity(game_state, .entity_type_house, pos)
 	result.low.sim.width    = 1.0
 	result.low.sim.height   = 1.0
 	result.low.sim.collides = true
@@ -140,27 +153,110 @@ move_entity :: proc(
 	entity: ^SimEntity,
 	dt: f32,
 	move_spec: ^MoveSpec,
-	ddp: v3_f32,
+	old_ddp: v3_f32,
 ) {
+	ddp := old_ddp
+
 	using linalg
-	ddp := ddp
 	if move_spec.unit_max_accel_vector {
-		ddp_len := length_sq(ddp)
+		ddp_len := length_sq(old_ddp)
 
 		if ddp_len > 1.0 {
 			ddp = ddp * (1.0 / sq_root(ddp_len))
 		}
 	}
 
+
+	switch(entity.face_direction){
+	case .UP:{
+	}
+	case .DOWN:{
+		ddp = -ddp
+	}
+	case .RIGHT, .LEFT:{
+		ddp = linalg.vector3f32_swizzle3(ddp, .z, .y, .x)
+		if(entity.face_direction == .RIGHT){
+			ddp.x = -ddp.x
+		}else{
+			ddp.z *= -1
+		}
+	}
+	}
+
 	ddp *= move_spec.speed
 	ddp += -move_spec.drag * entity.dP
 	delta := (0.5 * ddp * square(dt) + entity.dP * dt)
-
 	entity.pos += delta
-
 	entity.dP = ddp * dt + entity.dP
+}
+
+update_face_direction :: proc (game_state: ^GameState, entity : ^SimEntity){
+	camera := &game_state.camera
+	radius := f64(linalg.vector_length(camera.position))
+
+	offset := int(entity.face_direction)
 
 
+	if rl.IsKeyPressed(.DOWN){
+		//camera.position = linalg.vector3f32_swizzle3(camera.position, .x, .y, .z)
+
+		switch(entity.face_direction){
+		case .LEFT, .RIGHT:{
+			camera.position.x *= -1
+			//camera.position.z *= -1
+		}
+		case.UP, .DOWN:{
+			camera.position.z *= -1
+		}
+		}
+		offset += 2
+	}
+	if rl.IsKeyPressed(.LEFT) {
+		//entity.face_direction = .LEFT
+		camera.position = linalg.vector3f32_swizzle3(camera.position, .z, .y, .x)
+
+		#partial switch(entity.face_direction){
+			case .UP, .DOWN:{
+			camera.position.x *= -1
+		}
+		}
+		offset -= 1
+	}
+	if(rl.IsKeyPressed(.RIGHT)){
+		camera.position = linalg.vector3f32_swizzle3(camera.position, .z, .y, .x)
+
+		#partial switch(entity.face_direction){
+			case .LEFT, .RIGHT:{
+			camera.position.z *= -1
+		}
+		}
+		offset += 1
+	}
+
+	if(offset < 0){
+		offset = 3
+	}
+	if(offset >= len(FaceDirection)){
+		offset = offset % len(FaceDirection)
+	}
+	if(offset != int(entity.face_direction)){
+		entity.face_direction = FaceDirection(offset)
+		fmt.println(entity.face_direction)
+	}
+}
+
+update_camera_animation :: proc(game_state: ^GameState){
+	animation := &game_state.camera_animation
+
+	//check for input
+
+	if rl.IsKeyPressed(.C){
+
+	}
+
+	if !animation.active {
+
+	}
 }
 
 

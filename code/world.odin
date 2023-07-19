@@ -10,9 +10,9 @@ import rl "vendor:raylib"
 
 TILE_CHUNK_UNINITILIZED :: c.INT32_MAX
 
-TILE_COUNT_PER_WIDTH   :: 16 //x axis
+TILE_COUNT_PER_WIDTH   :: 20 //x axis
 TILE_COUNT_PER_HEIGHT  :: 5  //y axis
-TILE_COUNT_PER_BREADTH :: 10 //z axis
+TILE_COUNT_PER_BREADTH :: 16 //z axis
 
 WorldPos :: struct {
 	chunk:  v3_i32,

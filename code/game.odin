@@ -7,6 +7,8 @@ import "core:math/linalg"
 import "core:strings"
 import gl "vendor:Opengl"
 
+update_camera :: false
+
 MAX_LIGHTS :: 4
 
 //TODO: Asset struct?
@@ -19,25 +21,33 @@ wall_model      : rl.Model
 grey_wall_model : rl.Model
 shader          : rl.Shader
 lights          : [MAX_LIGHTS]cgltf.light 
+shraddh_ko_ghar : rl.Model
+grass           : rl.Model
 
 vec3 :: linalg.Vector3f32
 
-GameState :: struct {
-	world             : ^World,
-
-	//@depricated
-	cam_pos           : WorldPos,
-	cam_bounds        : rec3, 
-	low_entities      : [10000]LowEntity,
-	low_entities_count: u32,
-	player_index      : u32,// 0 if player dosen't exist
-	initilized        : bool,
-	camera            : rl.Camera,
-
-	cam_pos_offset    : vec3,
-
-	//camera_front      : linalg.Vector3f32,
+Animation :: struct {
+	active    : bool,
+	forced    : bool,
+	dest      : vec3,
+	src       : vec3,
+	ddp       : vec3,
+	completed : u32,
 }
+
+GameState :: struct {
+	world              : ^World,
+	low_entities       : [10000]LowEntity,
+	low_entities_count : u32,
+	player_index       : u32,// 0 if player dosen't exist
+	initilized         : bool,
+
+	cam_pos            : WorldPos,
+	cam_bounds         : rec3, 
+	camera             : rl.Camera,
+	camera_animation   : Animation,
+}
+
 
 
 chunk_add_base_tiles :: proc(game_state: ^GameState, chunk: ^Chunk, model: ^rl.Model){
@@ -59,6 +69,8 @@ chunk_add_base_tiles :: proc(game_state: ^GameState, chunk: ^Chunk, model: ^rl.M
 
 render_game :: proc(game_state: ^GameState, sim_region: ^SimRegion){
 	using rl
+
+	//TODO: use only one string builder
 	builder        := strings.builder_make()
 	player_builder := strings.builder_make()
 	world_builder  := strings.builder_make()
@@ -68,9 +80,7 @@ render_game :: proc(game_state: ^GameState, sim_region: ^SimRegion){
 	ClearBackground(Color{10, 110, 80, 55})
 
 	//beginmode3d modes the matrix look at
-	prev_pos := game_state.camera.position
 
-	game_state.camera.position  += game_state.cam_pos_offset
 	BeginMode3D(game_state.camera)
 
 	for i in 0..<sim_region.entity_count {
@@ -83,25 +93,23 @@ render_game :: proc(game_state: ^GameState, sim_region: ^SimRegion){
 		case .entity_type_player:{
 
 			rotation := linalg.Vector3f32{}
-			angle : f32 = 90
+			angle : f32 = 0
+			camera := &game_state.camera
 
-			switch (entity.face_direction){
-			case .UP:{
-				angle = 0
-			}
+			rotation.y  = 1
+			#partial switch (entity.face_direction){
 			case .DOWN:{
 				angle = 180
-				rotation.y  = 1
 			}
 			case .LEFT:{
-				rotation.y  = 1
+				angle = 90
 			}
 			case .RIGHT:{
-				rotation.y  = -1
+				angle = -90
 			}
 			}
 
-			DrawModelEx(player_model, linalg.Vector3f32(entity.pos), rotation, angle, 1, WHITE)
+			DrawModelEx(entity.model^, linalg.Vector3f32(entity.pos), rotation, angle, 1, WHITE)
 
 			strings.write_string(&player_builder, "Player Position, x = ")
 			strings.write_f32(&player_builder, entity.pos.x, 'f')
@@ -115,12 +123,17 @@ render_game :: proc(game_state: ^GameState, sim_region: ^SimRegion){
 		}
 
 		case .entity_type_wall:{
-			DrawModel(entity.model^, linalg.Vector3f32(entity.pos),1, WHITE)
+			pos := entity.pos
+			pos.y -=.5 
+			DrawModel(entity.model^, pos, 1, WHITE)
 			//DrawCubeWires(linalg.Vector3f32(entity.pos), 1, 1, 1, WHITE)
+		}
+
+		case .entity_type_house:{
+			DrawModel(entity.model^, entity.pos, 1, WHITE)
 		}
 		}
 	}
-	//DrawModel(temple_model, linalg.Vector3f32{0,0,0}, 1, WHITE)
 
 	//DrawModel(wall_model, {}, 1.0, WHITE)
 	EndMode3D()
@@ -140,16 +153,16 @@ render_game :: proc(game_state: ^GameState, sim_region: ^SimRegion){
 
 	strings.write_string(&memory_used_builder, "Total Memory used = ");
 	strings.write_int(&memory_used_builder, int(platform.arena.total_used))
+	strings.write_string(&memory_used_builder, "\n")
 
-
-	DrawFPS(10, 10)
+	//DrawFPS(10, 10)
 	DrawText(strings.unsafe_string_to_cstring(strings.to_string(player_builder)), 30, 60, 20, WHITE)
 	DrawText(strings.unsafe_string_to_cstring(strings.to_string(world_builder)), 30, 90, 20, WHITE)
 
 	DrawText(strings.unsafe_string_to_cstring(strings.to_string(memory_used_builder)), 30, 120, 20, WHITE)
 
 	EndDrawing()
-	game_state.camera.position  = prev_pos
+	//game_state.camera.position  = prev_pos
 }
 
 initilize_light :: proc(){
@@ -174,11 +187,11 @@ update_game :: proc(){
 
 		game_state.initilized = true;
 		game_state.low_entities_count = 0;
-		game_state.cam_bounds.min  = v3_f32{-100, -4, -100}
-		game_state.cam_bounds.max  = v3_f32{ 100,  5,  100}
+		game_state.cam_bounds.min  = v3_f32{-100, -10, -100}
+		game_state.cam_bounds.max  = v3_f32{ 100,  10,  100}
 
 		//TODO: load all this from config file and probably change it on file changed 
-		game_state.camera.position   = {0.0, 10,  -10} //cam pos
+		game_state.camera.position   = {0.0, 20,  -20} //cam pos
 		//game_state.camera_front      = {0.0, -1, 1.0} 
 		//game_state.camera.target     = game_state.camera.position + game_state.camera_front      //camera looking at position
 		game_state.camera.up         = {0.0, 1.0, 0.0} //camera up vector 
@@ -188,6 +201,7 @@ update_game :: proc(){
 		initilize_light();
 
 		temple_model = rl.LoadModel("../data/turrent.glb")
+		grass        = rl.LoadModel("../data/Grass.glb")
 		//temple_model.materials[0].shader = shader
 		//texture := rl.LoadTexture("../data/turret_diffuse.png")
 		//rl.GenTextureMipmaps(&texture)
@@ -195,7 +209,7 @@ update_game :: proc(){
 
 		//temple_model.materials[0].maps[rl.MaterialMapIndex.ALBEDO].texture = texture
 
-		player_model = rl.LoadModel("../data/security_officer/scene.gltf")
+		player_model = rl.LoadModel("../data/security_officer/untitled.glb")
 		player_model.materials[0].shader = shader
 
 
@@ -203,6 +217,7 @@ update_game :: proc(){
 
 		wall_model = rl.LoadModel("../data/cube.glb")
 		grey_wall_model = rl.LoadModel("../data/grey_cube.glb")
+		shraddh_ko_ghar = rl.LoadModel("../data/shradd_house.glb")
 
 		wall_texture = rl.LoadTexture("../data/tex_wall.png")
 
@@ -211,6 +226,7 @@ update_game :: proc(){
 
 		brown_floor = rl.LoadTexture("../data/brown_floor.png")
 		rl.GenTextureMipmaps(&brown_floor)
+
 		rl.SetTextureFilter(brown_floor, .TRILINEAR)
 
 		//wall_model.materials[0].maps[rl.MaterialMapIndex.ALBEDO].texture = texture
@@ -221,11 +237,29 @@ update_game :: proc(){
 		initilize_world(game_state)
 
 		player_pos :WorldPos 
-		player_pos.offset = {3,1, 1}
+		player_pos.offset = {0,0, 0}
 		game_state.player_index = add_player(game_state, player_pos).entity_index
 
 
 		chunk := get_world_chunk(game_state.world, {0,0,0}, &platform.arena)
+		chunk_add_base_tiles(game_state, chunk, &grey_wall_model)
+
+		chunk = get_world_chunk(game_state.world, {-1,0,0}, &platform.arena)
+		chunk_add_base_tiles(game_state, chunk, &wall_model)
+
+		chunk = get_world_chunk(game_state.world, {-3,2,4}, &platform.arena)
+		chunk_add_base_tiles(game_state, chunk, &wall_model)
+
+		chunk = get_world_chunk(game_state.world, {-2,0,0}, &platform.arena)
+		chunk_add_base_tiles(game_state, chunk, &wall_model)
+
+		chunk = get_world_chunk(game_state.world, {-2,0,-1}, &platform.arena)
+		chunk_add_base_tiles(game_state, chunk, &wall_model)
+
+		chunk = get_world_chunk(game_state.world, {-2,0,0}, &platform.arena)
+		chunk_add_base_tiles(game_state, chunk, &wall_model)
+
+		chunk = get_world_chunk(game_state.world, {0,1,1}, &platform.arena)
 		chunk_add_base_tiles(game_state, chunk, &grey_wall_model)
 
 		chunk = get_world_chunk(game_state.world, {0,0,1}, &platform.arena)
@@ -238,6 +272,13 @@ update_game :: proc(){
 		chunk = get_world_chunk(game_state.world, {1,1,1}, &platform.arena)
 		chunk_add_base_tiles(game_state, chunk, &grey_wall_model)
 
+		chunk = get_world_chunk(game_state.world, {2,1,1}, &platform.arena)
+		chunk_add_base_tiles(game_state, chunk, &grey_wall_model)
+
+		house_pos : WorldPos = {}
+		house_pos.chunk = {-3, 2, 4}
+		add_house(game_state, house_pos, &shraddh_ko_ghar)
+
 	}
 
 	//begin and end sim
@@ -245,14 +286,13 @@ update_game :: proc(){
 	sim_memory := virtual.arena_temp_begin(&platform.temp_arena)
 
 	//currently the camera pos is the player pos but we need to make it more flexible later
-	cam_pos : WorldPos = {}
 
 	if(game_state.player_index != 0){
 		player := game_state.low_entities[game_state.player_index];
-		cam_pos = player.pos
+		game_state.cam_pos = player.pos
 	}
 
-	sim_region := begin_sim(sim_memory.arena, game_state, cam_pos, game_state.cam_bounds)
+	sim_region := begin_sim(sim_memory.arena, game_state, game_state.cam_pos, game_state.cam_bounds)
 
 
 	//TODO add simulation code
@@ -262,9 +302,11 @@ update_game :: proc(){
 	player_ddp : v3_f32
 
 	camera := &game_state.camera
-	//rl.UpdateCamera(camera, .THIRD_PERSON)
-	//-= rl.GetMouseWheelMove()/10 * vec3{10, 10, 0} //game_state.camera_front
-	//camera.target     = game_state.camera.position + game_state.camera_front      //camera looking at position
+	if(update_camera){
+		rl.UpdateCamera(camera, .THIRD_PERSON)
+	}
+	//camera.position -= rl.GetMouseWheelMove()/10 * vec3{10, 10, 0} * camera.target //game_state.camera_front
+	//camera.target     -= game_state.camera.position //+ game_state.camera_front      //camera looking at position
 
 	speed : f32 = .1
 
@@ -287,57 +329,32 @@ update_game :: proc(){
 
 	//update jump
 
+	//if(update_camera){
 	for entity, i in &sim_region.entities{
 		if u32(i) >= sim_region.entity_count { break}
 
 		#partial switch entity.type {
 			case .entity_type_player:{
-				using linalg
-				radius : f64 = 20
-				cam_x  := f32(sin(1.0) * radius)
-				cam_z  := f32(cos(1.0) * radius)
+				//using linalg
+				//TODO: calculate this by the distance of camera from player
+				//radius_sqrt : f64 = f64(camera.position.y * camera.position.y +   camera.position.z * camera.position.z + camera.position.x * camera.position.x)//f64(camera.target.z)
 
-				if(rl.IsKeyPressed(.UP)){
-					entity.face_direction = .UP
-				}
-				if(rl.IsKeyPressed(.DOWN)){
-					entity.face_direction = .DOWN
-				}
-				if(rl.IsKeyPressed(.LEFT)){
-					entity.face_direction = .LEFT
-					//camera.position -= vec3{cam_x, 0, cam_z}
-					game_state.cam_pos_offset  = vec3{cam_x, 0, cam_z} 
-				}
-				if(rl.IsKeyPressed(.RIGHT)){
-					entity.face_direction = .RIGHT
-					//the rotate thing
-
-					//view := matrix4_look_at_f32(vec3{cam_x, 0, cam_z} + entity.pos, entity.pos, vec3{0, 1, 0})
-
-					//camera.position += 
-
-					
-					//rl.rlMultMatrixf(cast([^]f32)&view[0])
-					game_state.cam_pos_offset  = vec3{cam_x, 0, cam_z} 
-						
-				}
+				update_face_direction(game_state, &entity)
 
 				low := &game_state.low_entities[entity.storage_index]
 				spec := default_move_spec()
 				spec.unit_max_accel_vector = true
-				spec.speed = 30.0
-				spec.drag  = 8.0
+				spec.speed = 100.0
+				spec.drag  = 20.0
 				move_entity(game_state, sim_region, &entity, 0.01667, &spec, player_ddp)
 				//game_state.camera_front      =  cast(linalg.Vector3f32)(entity.pos)
 			}
 		}
 	}
+	//}
 	
-
 	end_sim(sim_region, game_state)
-
 	render_game(game_state, sim_region)
 	virtual.arena_temp_end(sim_memory)
-
 }
 
