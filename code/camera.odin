@@ -1,6 +1,5 @@
 package main
 
-//
 CameraMode :: enum {
 	PLAYER_ZOOMED,
 	PLAYER_NOZOOMED,

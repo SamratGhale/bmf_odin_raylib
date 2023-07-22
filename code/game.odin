@@ -7,7 +7,7 @@ import "core:math/linalg"
 import "core:strings"
 import gl "vendor:Opengl"
 
-update_camera :: false
+update_camera :: true
 
 MAX_LIGHTS :: 4
 
@@ -23,6 +23,10 @@ shader          : rl.Shader
 lights          : [MAX_LIGHTS]cgltf.light 
 shraddh_ko_ghar : rl.Model
 grass           : rl.Model
+
+player_animation : [^]rl.ModelAnimation
+player_anim_frame_counter : i32
+player_anim_count: u32
 
 vec3 :: linalg.Vector3f32
 
@@ -46,9 +50,8 @@ GameState :: struct {
 	cam_bounds         : rec3, 
 	camera             : rl.Camera,
 	camera_animation   : Animation,
+	camera_mode        : CameraMode,
 }
-
-
 
 chunk_add_base_tiles :: proc(game_state: ^GameState, chunk: ^Chunk, model: ^rl.Model){
 	for x in 0..<TILE_COUNT_PER_WIDTH{
@@ -94,8 +97,6 @@ render_game :: proc(game_state: ^GameState, sim_region: ^SimRegion){
 
 			rotation := linalg.Vector3f32{}
 			angle : f32 = 0
-			camera := &game_state.camera
-
 			rotation.y  = 1
 			#partial switch (entity.face_direction){
 			case .DOWN:{
@@ -109,7 +110,14 @@ render_game :: proc(game_state: ^GameState, sim_region: ^SimRegion){
 			}
 			}
 
-			DrawModelEx(entity.model^, linalg.Vector3f32(entity.pos), rotation, angle, 1, WHITE)
+			player_anim_frame_counter += 1;
+			UpdateModelAnimation(entity.model^, player_animation[0], player_anim_frame_counter)
+			if(player_anim_frame_counter > player_animation[0].frameCount){
+				player_anim_frame_counter = 0
+			}
+
+			DrawModelEx(entity.model^, linalg.Vector3f32(entity.pos), rotation, angle, 5, WHITE)
+			//DrawModel(entity.model^, entity.pos, 1, WHITE)
 
 			strings.write_string(&player_builder, "Player Position, x = ")
 			strings.write_f32(&player_builder, entity.pos.x, 'f')
@@ -191,9 +199,7 @@ update_game :: proc(){
 		game_state.cam_bounds.max  = v3_f32{ 100,  10,  100}
 
 		//TODO: load all this from config file and probably change it on file changed 
-		game_state.camera.position   = {0.0, 20,  -20} //cam pos
-		//game_state.camera_front      = {0.0, -1, 1.0} 
-		//game_state.camera.target     = game_state.camera.position + game_state.camera_front      //camera looking at position
+		game_state.camera.position   = {0.0, 10,  -10} //cam pos
 		game_state.camera.up         = {0.0, 1.0, 0.0} //camera up vector 
 		game_state.camera.fovy       = 45.0
 		game_state.camera.projection = .PERSPECTIVE 
@@ -209,8 +215,12 @@ update_game :: proc(){
 
 		//temple_model.materials[0].maps[rl.MaterialMapIndex.ALBEDO].texture = texture
 
-		player_model = rl.LoadModel("../data/security_officer/untitled.glb")
+		//player_model = rl.LoadModel("../data/security_officer/untitled.glb")
+		player_model = rl.LoadModel("../data/hollow.glb")
 		player_model.materials[0].shader = shader
+
+		player_animation = rl.LoadModelAnimations("../data/hollow.glb", &player_anim_count)
+		player_anim_frame_counter = 0
 
 
 		using cgltf
@@ -237,7 +247,7 @@ update_game :: proc(){
 		initilize_world(game_state)
 
 		player_pos :WorldPos 
-		player_pos.offset = {0,0, 0}
+		player_pos.offset = {0,1, 0}
 		game_state.player_index = add_player(game_state, player_pos).entity_index
 
 
@@ -287,7 +297,8 @@ update_game :: proc(){
 
 	//currently the camera pos is the player pos but we need to make it more flexible later
 
-	if(game_state.player_index != 0){
+	
+	if(!update_camera  && game_state.player_index != 0){
 		player := game_state.low_entities[game_state.player_index];
 		game_state.cam_pos = player.pos
 	}
@@ -303,22 +314,15 @@ update_game :: proc(){
 
 	camera := &game_state.camera
 	if(update_camera){
-		rl.UpdateCamera(camera, .THIRD_PERSON)
+		rl.UpdateCamera(camera, .FREE)
 	}
-	//camera.position -= rl.GetMouseWheelMove()/10 * vec3{10, 10, 0} * camera.target //game_state.camera_front
-	//camera.target     -= game_state.camera.position //+ game_state.camera_front      //camera looking at position
-
 	speed : f32 = .1
 
 	if rl.IsKeyDown(.S) {
 		player_ddp.z = -1;
-		//camera.position -= speed * camera.target
-		//camera.target     = game_state.camera.position + game_state.camera_front      //camera looking at position
 	}
 	if rl.IsKeyDown(.W) {
 		player_ddp.z = 1;
-		//camera.position += speed* camera.target
-		//camera.target     = game_state.camera.position + game_state.camera_front      //camera looking at position
 	}
 	if rl.IsKeyDown(.A) {
 		player_ddp.x = 1;
@@ -329,29 +333,26 @@ update_game :: proc(){
 
 	//update jump
 
-	//if(update_camera){
-	for entity, i in &sim_region.entities{
-		if u32(i) >= sim_region.entity_count { break}
+	if(!update_camera){
+		for entity, i in &sim_region.entities{
+			if u32(i) >= sim_region.entity_count { break}
 
-		#partial switch entity.type {
-			case .entity_type_player:{
-				//using linalg
-				//TODO: calculate this by the distance of camera from player
-				//radius_sqrt : f64 = f64(camera.position.y * camera.position.y +   camera.position.z * camera.position.z + camera.position.x * camera.position.x)//f64(camera.target.z)
+			#partial switch entity.type {
+				case .entity_type_player:{
 
-				update_face_direction(game_state, &entity)
+					update_face_direction(game_state, &entity)
 
-				low := &game_state.low_entities[entity.storage_index]
-				spec := default_move_spec()
-				spec.unit_max_accel_vector = true
-				spec.speed = 100.0
-				spec.drag  = 20.0
-				move_entity(game_state, sim_region, &entity, 0.01667, &spec, player_ddp)
-				//game_state.camera_front      =  cast(linalg.Vector3f32)(entity.pos)
+					low := &game_state.low_entities[entity.storage_index]
+					spec := default_move_spec()
+					spec.unit_max_accel_vector = true
+					spec.speed = 100.0
+					spec.drag  = 20.0
+					move_entity(game_state, sim_region, &entity, 0.01667, &spec, player_ddp)
+					//game_state.camera_front      =  cast(linalg.Vector3f32)(entity.pos)
+				}
 			}
 		}
 	}
-	//}
 	
 	end_sim(sim_region, game_state)
 	render_game(game_state, sim_region)

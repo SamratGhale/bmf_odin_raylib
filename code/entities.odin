@@ -55,6 +55,7 @@ SimEntity :: struct{
 //only pointer because we just wanna make one copy unless in exceptional case 
 	model     : ^rl.Model,
 	texture   : ^rl.Texture,  
+
 	//add tex handle
 }
 
@@ -241,7 +242,6 @@ update_face_direction :: proc (game_state: ^GameState, entity : ^SimEntity){
 	}
 	if(offset != int(entity.face_direction)){
 		entity.face_direction = FaceDirection(offset)
-		fmt.println(entity.face_direction)
 	}
 }
 

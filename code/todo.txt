@@ -1,4 +1,5 @@
-Game Mode free camera? for debug?
+camera modes
+
 
 player/entity movement
 Use raylib's collision of models and (tiles)?
