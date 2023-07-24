@@ -2,8 +2,16 @@ package main
 
 import "core:mem/virtual"
 import "core:fmt"
+import "core:math/linalg"
 
 print :: fmt.println
+
+vec3f :: linalg.Vector3f32
+vec3  :: linalg.Vector3f32
+vec4  :: linalg.Vector4f32
+vec3i :: [3]i32
+rec3  :: linalg.Matrix3x2f32
+
 
 GameMode :: enum {
 	GAME_MODE_PLAY,

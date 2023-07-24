@@ -43,8 +43,8 @@ FaceDirection :: enum {
 SimEntity :: struct{
 	type      : EntityType,
 	pos       : vec3,
-	dP        : v3_f32,
-	color     : v4, //maybe we can just use color for now
+	dP        : vec3,
+	color     : vec4, //maybe we can just use color for now
 	height    : f32,
 	width     : f32,
 	collides  : bool,
@@ -67,6 +67,7 @@ EntityType::enum
 	entity_type_enemy,
 	entity_type_wall,
 	entity_type_house,
+	entity_type_grimchild,
 };
 
 
@@ -154,16 +155,16 @@ move_entity :: proc(
 	entity: ^SimEntity,
 	dt: f32,
 	move_spec: ^MoveSpec,
-	old_ddp: v3_f32,
+	old_ddp: vec3,
 ) {
 	ddp := old_ddp
 
 	using linalg
 	if move_spec.unit_max_accel_vector {
-		ddp_len := length_sq(old_ddp)
+		ddp_len := inner_product(old_ddp, old_ddp)
 
 		if ddp_len > 1.0 {
-			ddp = ddp * (1.0 / sq_root(ddp_len))
+			ddp = ddp * (1.0 / sqrt(ddp_len))
 		}
 	}
 
@@ -186,25 +187,48 @@ move_entity :: proc(
 
 	ddp *= move_spec.speed
 	ddp += -move_spec.drag * entity.dP
-	delta := (0.5 * ddp * square(dt) + entity.dP * dt)
+	delta := (0.5 * ddp * dt * dt + entity.dP * dt)
 	entity.pos += delta
 	entity.dP = ddp * dt + entity.dP
 }
 
+map_position_to_face ::proc (game_state: ^GameState, pos : vec3)-> vec3{
+	face :FaceDirection
+
+	if(game_state.player_index != 0){
+		player := game_state.low_entities[game_state.player_index];
+		face = player.sim.face_direction
+	}
+
+	ret := pos
+
+	switch(face){
+	case .LEFT:{
+		ret = linalg.vector3f32_swizzle3(pos, .z, .y, .x)
+	}
+	case .DOWN:{
+		ret.z *= -1
+	}
+
+	case .UP:{
+	}
+	case .RIGHT:{
+		ret = linalg.vector3f32_swizzle3(pos, .z, .y, .x)
+		ret.x *= -1
+	}
+	}
+	return ret
+}
+
 update_face_direction :: proc (game_state: ^GameState, entity : ^SimEntity){
 	camera := &game_state.camera
-	radius := f64(linalg.vector_length(camera.position))
 
 	offset := int(entity.face_direction)
 
-
 	if rl.IsKeyPressed(.DOWN){
-		//camera.position = linalg.vector3f32_swizzle3(camera.position, .x, .y, .z)
-
 		switch(entity.face_direction){
 		case .LEFT, .RIGHT:{
 			camera.position.x *= -1
-			//camera.position.z *= -1
 		}
 		case.UP, .DOWN:{
 			camera.position.z *= -1
@@ -213,7 +237,6 @@ update_face_direction :: proc (game_state: ^GameState, entity : ^SimEntity){
 		offset += 2
 	}
 	if rl.IsKeyPressed(.LEFT) {
-		//entity.face_direction = .LEFT
 		camera.position = linalg.vector3f32_swizzle3(camera.position, .z, .y, .x)
 
 		#partial switch(entity.face_direction){

@@ -1,6 +1,7 @@
 package main
 
 import "core:mem/virtual"
+import "core:math/linalg"
 
 SimRegion :: struct {
 	entity_count : u32,
@@ -8,7 +9,7 @@ SimRegion :: struct {
 	center       : WorldPos,
 	world        : ^World,
 	sim_arena    : ^virtual.Arena,
-	entities     : [4048]SimEntity,
+	entities     : [10000]SimEntity,
 }
 
 add_entity_to_sim :: proc(
@@ -16,7 +17,7 @@ add_entity_to_sim :: proc(
 	region: ^SimRegion,
 	low_index: u32,
 	low: ^LowEntity,
-	entity_rel_pos: v3_f32,
+	entity_rel_pos: vec3,
 ) -> ^SimEntity {
 
 	assert(low_index != 0)
@@ -35,6 +36,26 @@ add_entity_to_sim :: proc(
 	return entity
 }
 
+//what is the position of middle tile of chunk with respect to the current player
+
+curr_chunk_offset :: proc(game_state: ^GameState) -> vec3{
+	player: ^LowEntity;
+	if(game_state.player_index != 0){
+		player = &game_state.low_entities[game_state.player_index];
+	}
+	center_tile_pos : WorldPos 
+	center_tile_pos.chunk = player.pos.chunk
+
+	//center_tile_pos = map_into_world_pos(game_state.world, player.pos, )
+
+	//player_offset_from_chunk := subtract(game_state.world, center_tile_pos, player.pos)
+
+	entity_sim_space := subtract(game_state.world, center_tile_pos, {})
+
+	
+	return entity_sim_space
+}
+
 begin_sim :: proc(sim_arena: ^virtual.Arena, game_state: ^GameState, center: WorldPos, bounds: rec3)-> ^SimRegion{
 
 	world := game_state.world
@@ -46,14 +67,14 @@ begin_sim :: proc(sim_arena: ^virtual.Arena, game_state: ^GameState, center: Wor
 	sim_region.bounds       = bounds
 	sim_region.entity_count = 0
 
-	min_chunk_pos := map_into_world_pos(world, sim_region.center, bounds.min).chunk
-	max_chunk_pos := map_into_world_pos(world, sim_region.center, bounds.max).chunk
+	min_chunk_pos := map_into_world_pos(world, sim_region.center, vec3(bounds[0])).chunk
+	max_chunk_pos := map_into_world_pos(world, sim_region.center, vec3(bounds[1])).chunk
 
 	for x in min_chunk_pos.x ..= max_chunk_pos.x {
 		for y in min_chunk_pos.y ..= max_chunk_pos.y{
 
 			for z in min_chunk_pos.z ..= max_chunk_pos.z {
-				chunk := get_world_chunk(world, v3_i32{i32(x), i32(y), i32(z)}, nil)
+				chunk := get_world_chunk(world, vec3i{i32(x), i32(y), i32(z)}, nil)
 
 				for chunk != nil{
 					node := chunk.node
@@ -95,11 +116,11 @@ end_sim :: proc(region: ^SimRegion, game_state : ^GameState) {
 }
 
 
-is_in_rectangle :: proc (rect: rec3, test: v3_f32 )-> bool
+is_in_rectangle :: proc (rect: rec3, test: vec3)-> bool
 {
-	result := ((test.x < rect.max.x && test.y < rect.max.y) &&
-				   (test.x >= rect.min.x && test.y >= rect.min.y) && 
-				   (test.z >= rect.min.x && test.z >= rect.min.z))
+	result := ((test.x < rect[1].x && test.y < rect[1].y) &&
+				   (test.x >= rect[0].x && test.y >= rect[0].y) && 
+				   (test.z >= rect[0].x && test.z >= rect[0].z))
 	return result
 }
 

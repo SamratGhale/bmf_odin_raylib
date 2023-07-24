@@ -10,15 +10,14 @@ import rl "vendor:raylib"
 
 TILE_CHUNK_UNINITILIZED :: c.INT32_MAX
 
-TILE_COUNT_PER_WIDTH   :: 20 //x axis
+TILE_COUNT_PER_WIDTH   :: 24 //x axis
 TILE_COUNT_PER_HEIGHT  :: 5  //y axis
 TILE_COUNT_PER_BREADTH :: 16 //z axis
 
 WorldPos :: struct {
-	chunk:  v3_i32,
-	offset: v3_f32,
+	chunk:  vec3i,
+	offset: vec3f,
 }
-
 
 EntityNode :: struct {
 	entity_index: u32,
@@ -27,13 +26,13 @@ EntityNode :: struct {
 
 Chunk :: struct {
 	entity_count : u32,
-	pos:  v3_i32,
+	pos:  vec3i,
 	node: ^EntityNode,
 	next: ^Chunk,
 }
 
 World :: struct {
-	chunk_size_in_meters: v3_f32,
+	chunk_size_in_meters: vec3,
 	chunk_hash:           [128]Chunk,
 	chunk_count:          u32 , //only for debug
 	meters_to_pixels:     u32,
@@ -59,7 +58,7 @@ add_new_chunk :: proc(
 	arena: ^virtual.Arena,
 	world: ^World,
 	head: ^Chunk,
-	chunk_pos: v3_i32,
+	chunk_pos: vec3i,
 ) -> (
 	new_chunk: ^Chunk,
 ) {
@@ -87,7 +86,7 @@ add_new_chunk :: proc(
   */
 get_world_chunk :: proc(
 	world: ^World,
-	pos: v3_i32,
+	pos: vec3i,
 	arena: ^virtual.Arena = nil,
 ) -> ^Chunk {
 
@@ -133,7 +132,6 @@ change_entity_location :: proc(
 			chunk := get_world_chunk(world, old_p.chunk, arena)
 			assert(chunk != nil)
 			assert(chunk.node != nil)
-
 
 			if (new_p.chunk != old_p.chunk) {
 				node := chunk.node
@@ -194,7 +192,7 @@ initilize_world :: proc(game: ^GameState) {
 
 	world := game.world;
 
-	world.chunk_size_in_meters = v3_f32{f32(TILE_COUNT_PER_WIDTH), f32(TILE_COUNT_PER_HEIGHT), f32(TILE_COUNT_PER_BREADTH)};
+	world.chunk_size_in_meters = vec3{f32(TILE_COUNT_PER_WIDTH), f32(TILE_COUNT_PER_HEIGHT), f32(TILE_COUNT_PER_BREADTH)};
 
 	world.chunk_count = len(world.chunk_hash)
 
@@ -217,20 +215,19 @@ Floor:: proc(Real32: f32 ) ->f32
 */
 
 adjust_world_position :: proc(world: ^World, chunk_pos: ^i32, offset: ^f32, csim: f32) {
-	if(abs(offset^)  > csim){
 		extra_offset :i32= 0;
+		extra_offset = i32(linalg.floor(offset^ / csim))
+
 		if(offset^ > 0){
-			extra_offset = i32(linalg.floor(offset^ / csim))
 		}else{
-			extra_offset = i32(linalg.ceil(offset^ / csim))
+			//extra_offset = i32(linalg.ceil(offset^ / csim))
 		}
 		chunk_pos^   += extra_offset
 		offset^      -= f32(f32(extra_offset) * csim)
-	}
 }
 
 
-map_into_world_pos :: proc(world: ^World, origin: WorldPos, offset: v3_f32) -> WorldPos
+map_into_world_pos :: proc(world: ^World, origin: WorldPos, offset: vec3) -> WorldPos
 {
 
 	csim := world.chunk_size_in_meters
@@ -243,8 +240,8 @@ map_into_world_pos :: proc(world: ^World, origin: WorldPos, offset: v3_f32) -> W
 	return result
 }
 
-subtract :: proc(world: ^World, a: WorldPos, b: WorldPos) -> v3_f32 {
-	result: v3_f32
+subtract :: proc(world: ^World, a: WorldPos, b: WorldPos) -> vec3 {
+	result: vec3 
 
 	result.y = f32(a.chunk.y) - f32(b.chunk.y)
 	result.z = f32(a.chunk.z) - f32(b.chunk.z)

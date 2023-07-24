@@ -6,7 +6,7 @@ import "core:mem/virtual"
 import rl "vendor:raylib"
 
 SCREEN_WIDTH  :: 1920
-SCREEN_HEIGHT :: 1000
+SCREEN_HEIGHT :: 1080
 
 platform : PlatformState = {};
 
@@ -26,13 +26,17 @@ initilize_platform :: proc(){
 
 main :: proc(){
 	initilize_platform()
+	using rl
+	config : ConfigFlags;
+	config = {.MSAA_4X_HINT, .VSYNC_HINT, .WINDOW_HIGHDPI, .FULLSCREEN_MODE }
+	SetConfigFlags(config)
 
-	rl.InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Test Game")
-	defer rl.CloseWindow();
+	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Test Game")
+	defer CloseWindow();
 
-	rl.SetTargetFPS(60)
+	SetTargetFPS(60)
 
-	for ! rl.WindowShouldClose(){
+	for ! WindowShouldClose(){
 		update_game();
 	}
 }
