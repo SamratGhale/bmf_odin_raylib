@@ -7,7 +7,9 @@ add more enttities
 arbitary sized channels
 
 
-Use raylib's collision of models and (tiles)?
+/// Use raylib's collision of models and (tiles)?
+make gliding
+
 BUGS:
 when player moves from one chunk to another a memory gets allocated
 but it dosen't happen to the same chunk again and again

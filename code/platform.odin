@@ -26,4 +26,5 @@ PlatformState :: struct {
 	arena      : virtual.Arena, //static arena
 	temp_arena : virtual.Arena, //static arena
 	fps        : i32,
+	level_files: [dynamic]string,
 }

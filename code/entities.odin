@@ -4,6 +4,9 @@ import rl "vendor:raylib"
 import "core:fmt"
 import "core:math/linalg"
 
+FLT_MAX :: 340282346638528859811704183484516925440.0
+
+
 LowEntity :: struct {
 	pos: WorldPos,
 	sim: SimEntity,
@@ -39,6 +42,7 @@ FaceDirection :: enum {
 	DOWN,
 	RIGHT,
 }
+total_light_count : u32= 0
 
 SimEntity :: struct{
 	type      : EntityType,
@@ -55,6 +59,7 @@ SimEntity :: struct{
 //only pointer because we just wanna make one copy unless in exceptional case 
 	model     : ^rl.Model,
 	texture   : ^rl.Texture,  
+	light_index: u32,
 
 	//add tex handle
 }
@@ -68,6 +73,7 @@ EntityType::enum
 	entity_type_wall,
 	entity_type_house,
 	entity_type_grimchild,
+	entity_type_stone,
 };
 
 
@@ -109,6 +115,18 @@ add_wall :: proc(game_state: ^GameState, pos: WorldPos, model: ^rl.Model)->AddEn
 	return result;
 }
 
+add_stone:: proc(game_state: ^GameState, pos: WorldPos, model: ^rl.Model)->AddEntityResult{
+	chunk := get_world_chunk(game_state.world, pos.chunk)
+
+	result := add_low_entity(game_state, .entity_type_stone, pos)
+	result.low.sim.width    = 10.0
+	result.low.sim.height   = 10.0
+	result.low.sim.collides = true
+	result.low.sim.model    = model 
+	return result;
+}
+
+
 add_house:: proc(game_state: ^GameState, pos: WorldPos, model: ^rl.Model)->AddEntityResult{
 	chunk := get_world_chunk(game_state.world, pos.chunk)
 
@@ -129,7 +147,24 @@ add_player :: proc(game_state: ^GameState, pos: WorldPos)->AddEntityResult{
 	result.low.sim.height   = 1.0
 	result.low.sim.collides = true
 
-	result.low.sim.model   = &player_model
+	result.low.sim.model       = &player_model
+	result.low.sim.light_index = total_light_count
+	lights[total_light_count]  = create_light(.POINT, result.low.sim.pos, {}, rl.WHITE, shader)
+	total_light_count += 1
+	return result;
+}
+
+add_grimchild :: proc(game_state: ^GameState, pos: WorldPos)->AddEntityResult{
+	chunk := get_world_chunk(game_state.world, pos.chunk)
+
+	result := add_low_entity(game_state, .entity_type_grimchild, pos)
+	result.low.sim.width    = 1.0
+	result.low.sim.height   = 1.0
+	result.low.sim.collides = true
+	result.low.sim.model   = &grimchild_model
+	result.low.sim.light_index = total_light_count
+	lights[total_light_count] = create_light(.POINT, result.low.sim.pos, {}, rl.BLUE, shader)
+	//total_light_count += 1
 	return result;
 }
 
@@ -188,8 +223,42 @@ move_entity :: proc(
 	ddp *= move_spec.speed
 	ddp += -move_spec.drag * entity.dP
 	delta := (0.5 * ddp * dt * dt + entity.dP * dt)
-	entity.pos += delta
-	entity.dP = ddp * dt + entity.dP
+
+	ray :rl.Ray={} 
+	ray.position  = entity.pos
+	ray.direction = delta 
+
+	hit := false
+
+	nearest_collision : rl.RayCollision;
+	for i in 0..<sim_region.entity_count{
+		test_entity := sim_region.entities[i]
+
+		if(test_entity.storage_index != entity.storage_index){
+			if(test_entity.collides){
+				tower_box := rl.GetModelBoundingBox(test_entity.model^)
+				tower_box.min += test_entity.pos
+				tower_box.max += test_entity.pos
+
+				box_hit_info := rl.GetRayCollisionBox(ray, tower_box)
+
+				if(box_hit_info.hit && (abs(box_hit_info.distance) <= 1))
+				{
+					nearest_collision = box_hit_info
+					hit = true
+				}
+			}
+		}
+	}
+
+	if(!hit){
+		entity.pos += delta
+		entity.dP = ddp * dt + entity.dP
+	}else{
+		//entity.pos -= nearest_collision.point
+		entity.dP -= (ddp * dt + entity.dP)
+		//entity.dP = ddp * dt + entity.dP
+	}
 }
 
 map_position_to_face ::proc (game_state: ^GameState, pos : vec3)-> vec3{

@@ -19,11 +19,13 @@ shader          : rl.Shader
 shraddh_ko_ghar : rl.Model
 grass           : rl.Model
 plant           : rl.Model
+stone           : rl.Model
 
 lights          : [MAX_LIGHTS]Light
 
 debug_font      : rl.Font
 debug_builder   : strings.Builder
+grimchild_model : rl.Model
 
 player_animation : [^]rl.ModelAnimation
 player_anim_frame_counter : i32
@@ -74,13 +76,19 @@ chunk_add_base_tiles :: proc(game_state: ^GameState, chunk: ^Chunk, model: ^rl.M
 
 			add_wall(game_state, pos, model)
 
-			if((x == TILE_COUNT_PER_WIDTH-1 || z == TILE_COUNT_PER_BREADTH-1)
-			  ||(x == 0|| z == 0)
-			  ){
-				pos.offset = {f32(x), 1, f32(z)}
-				add_wall(game_state, pos, model)
-				pos.offset = {f32(x), 2, f32(z)}
-				add_wall(game_state, pos, model)
+			if((x == TILE_COUNT_PER_WIDTH-1 || z == TILE_COUNT_PER_BREADTH-1) ||(x == 0|| z == 0)){
+
+				if((x == TILE_COUNT_PER_WIDTH-1 && z == TILE_COUNT_PER_BREADTH-1) ||(x == 0 && z == 0)){
+					pos.offset = {f32(x), 2, f32(z)}
+					add_stone(game_state, pos, &stone)
+					//pos.offset = {f32(x), 2, f32(z)}
+					//add_stone(game_state, pos, &stone)
+				} else{
+					pos.offset = {f32(x), 1, f32(z)}
+					add_wall(game_state, pos, model)
+					pos.offset = {f32(x), 2, f32(z)}
+					add_wall(game_state, pos, model)
+				}
 			}
 		}
 	}
@@ -165,26 +173,37 @@ render_game :: proc(game_state: ^GameState, sim_region: ^SimRegion){
 						angle = -90
 					}
 				}
+				light_pos := entity.pos
+				light_pos.y += 2
 
+				lights[entity.light_index].pos    = light_pos
+				DrawModelEx(entity.model^, linalg.Vector3f32(entity.pos), rotation, angle, 1.5, WHITE)
+			}
+
+			case .entity_type_wall:{
+				DrawModel(entity.model^, entity.pos, 1, WHITE)
+			}
+			case .entity_type_stone:{
+				DrawModel(entity.model^, entity.pos, 1, WHITE)
+			}
+			case .entity_type_grimchild:{
 				player_anim_frame_counter += 1;
 				UpdateModelAnimation(entity.model^, player_animation[0], player_anim_frame_counter)
 				if(player_anim_frame_counter > player_animation[0].frameCount){
 					player_anim_frame_counter = 0
 				}
 
-				DrawModelEx(player_model, linalg.Vector3f32(entity.pos), rotation, angle, 5, WHITE)
+				DrawModel(entity.model^, entity.pos, 5, WHITE)
+				light_pos := entity.pos
+				light_pos.y += 2
 
-		}
+				//lights[entity.light_index].pos    = light_pos
+				//lights[entity.light_index].target = light_pos
+			}
 
-		case .entity_type_wall:{
-			pos := entity.pos
-			pos.y -=.5 
-			DrawModel(entity.model^, pos, 1, WHITE)
-		}
-
-		case .entity_type_house:{
-			DrawModel(entity.model^, entity.pos, 1, WHITE)
-		}
+			case .entity_type_house:{
+				DrawModel(entity.model^, entity.pos, 1, WHITE)
+			}
 		}
 	}
 
@@ -218,7 +237,7 @@ initilize_light :: proc(){
 	//some basic lightning
 	ambientLoc := GetShaderLocation(shader, "ambient")
 
-	ambient :vec4= {0.1, 0.1, 0.1, 1.0}
+	ambient :vec4= {0.01, 0.01, 0.01, 0.5}
 	SetShaderValue(shader, ShaderLocationIndex(ambientLoc), &ambient[0], .VEC4)
 	player_model.materials[0].shader = shader
 	wall_model.materials[0].shader = shader
@@ -226,16 +245,8 @@ initilize_light :: proc(){
 	player_model.materials[1].shader = shader
 	wall_model.materials[1].shader = shader
 	grey_wall_model.materials[1].shader = shader
-
-	lights[0] = create_light(.POINT, {0, 0, 0}, {},WHITE, shader)
-	lights[1] = create_light(.POINT, {2,1,2}, {},  RED, shader)
-	lights[2] = create_light(.POINT, {-2,1,2}, {}, GREEN, shader)
-	lights[3] = create_light(.POINT, {2,1,-2}, {}, BLUE, shader)
-	lights[0].enabled = true;
-	lights[1].enabled = false;
-	lights[2].enabled = false;
-	lights[3].enabled = false;
-
+	grimchild_model.materials[0].shader = shader
+	grimchild_model.materials[1].shader = shader
 }
 
 update_game :: proc(){
@@ -252,7 +263,7 @@ update_game :: proc(){
 		game_state.cam_bounds[1] = { 100,  10,  100}
 
 		//TODO: load all this from config file and probably change it on file changed 
-		game_state.camera.position   = {0.0, 10,  -10} //cam pos
+		game_state.camera.position   = {0.0, 7,  -10} //cam pos
 		game_state.camera.up         = {0.0, 1.0, 0.0} //camera up vector 
 		game_state.camera.fovy       = 45.0
 		game_state.camera.projection = .PERSPECTIVE 
@@ -260,7 +271,8 @@ update_game :: proc(){
 
 		temple_model = LoadModel("../data/turrent.glb")
 		grass        = LoadModel("../data/Grass.glb")
-		player_model = LoadModel("../data/hollow.glb")
+		player_model = LoadModel("../data/security_officer/untitled.glb")
+		grimchild_model = LoadModel("../data/hollow.glb")
 
 		player_animation = LoadModelAnimations("../data/hollow.glb", &player_anim_count)
 		player_anim_frame_counter = 0
@@ -278,6 +290,7 @@ update_game :: proc(){
 
 		shraddh_ko_ghar = LoadModel("../data/shradd_house.glb")
 		//plant = LoadModel("../data/plant.glb")
+		stone = LoadModel("../data/rock.glb")
 
 		GenTextureMipmaps(&wall_texture)
 		SetTextureFilter(wall_texture, .TRILINEAR)
@@ -288,10 +301,25 @@ update_game :: proc(){
 
 		add_low_entity(game_state, .entity_type_null, {})
 		initilize_world(game_state)
+		initilize_light();
 
 		player_pos :WorldPos 
-		player_pos.offset = {0,0, 0}
+		player_pos.offset = {TILE_COUNT_PER_WIDTH/2, 1 , TILE_COUNT_PER_BREADTH/2}
 		game_state.player_index = add_player(game_state, player_pos).entity_index
+
+		player_pos.offset = {2, 1 , 2}
+		add_grimchild(game_state, player_pos)
+		player_pos.offset = {10,1,10}
+		add_grimchild(game_state, player_pos)
+
+		//player_pos.chunk = {0,1,1}
+		player_pos.offset = {3,1,11}
+		//add_stone(game_state, player_pos, &stone)
+		player_pos.offset = {2,1,10}
+		//add_stone(game_state, player_pos, &stone)
+		player_pos.offset = {1,1,9}
+		//add_stone(game_state, player_pos, &stone)
+
 
 
 		chunk := get_world_chunk(game_state.world, {0,0,0}, &platform.arena)
@@ -303,6 +331,7 @@ update_game :: proc(){
 		chunk = get_world_chunk(game_state.world, {-3,2,4}, &platform.arena)
 		chunk_add_base_tiles(game_state, chunk, &wall_model)
 
+		/*
 		chunk = get_world_chunk(game_state.world, {-2,0,0}, &platform.arena)
 		chunk_add_base_tiles(game_state, chunk, &wall_model)
 
@@ -328,13 +357,14 @@ update_game :: proc(){
 		chunk = get_world_chunk(game_state.world, {2,1,1}, &platform.arena)
 		chunk_add_base_tiles(game_state, chunk, &grey_wall_model)
 
+		*/
+
 		house_pos : WorldPos = {}
 		house_pos.chunk = {-3, 2, 4}
 		add_house(game_state, house_pos, &shraddh_ko_ghar)
 
 		debug_font = LoadFontEx("../data/DroidSansMono.ttf", 100, nil, 256)
 		debug_builder = strings.builder_make(); 
-		initilize_light();
 
 	}
 
@@ -358,16 +388,11 @@ update_game :: proc(){
 			lights[0].target = offset
 		}else{
 			game_state.cam_pos = player.pos
-			light_pos := player.sim.pos
-			light_pos.y += 1
-
-			lights[0].pos    = light_pos
-			lights[0].target = light_pos
 		}
 		SetShaderValue(shader, ShaderLocationIndex.VECTOR_VIEW, &player.sim.pos[0], .VEC3)
 	}else{
 	}
-	for i in 0..< MAX_LIGHTS{
+	for i in 0..< total_light_count{
 		update_light_values(shader, &lights[i])
 	}
 
@@ -409,7 +434,6 @@ update_game :: proc(){
 		if(int(game_state.camera_mode) + 1 >= len(GameCameraMode)){
 			game_state.camera_mode = GameCameraMode(0)
 		}else{
-			
 			game_state.camera_mode = GameCameraMode(int(game_state.camera_mode) + 1)
 		}
 		switch(game_state.camera_mode){
@@ -428,6 +452,15 @@ update_game :: proc(){
 
 	//update jump
 
+	if(rl.IsKeyPressed(.SPACE)){
+		rl.ToggleFullscreen()
+		if(rl.IsWindowFullscreen()){
+			rl.SetWindowSize(1920, 1080)
+		}else{
+			rl.SetWindowSize(screen_width, screen_height)
+		}
+	}
+
 	for entity, i in &sim_region.entities{
 		if u32(i) >= sim_region.entity_count { break}
 
@@ -440,7 +473,7 @@ update_game :: proc(){
 					low := &game_state.low_entities[entity.storage_index]
 					spec := default_move_spec()
 					spec.unit_max_accel_vector = true
-					spec.speed = 100.0
+					spec.speed = 170.0
 					spec.drag  = 10.0
 					move_entity(game_state, sim_region, &entity, 0.01667, &spec, player_ddp)
 				}
