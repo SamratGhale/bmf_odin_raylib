@@ -3,10 +3,7 @@ package main
 import "core:c"
 import "core:runtime"
 import "core:mem/virtual"
-import "core:math"
 import "core:math/linalg"
-import "core:math/fixed"
-import rl "vendor:raylib"
 
 TILE_CHUNK_UNINITILIZED :: c.INT32_MAX
 
@@ -196,7 +193,7 @@ initilize_world :: proc(game: ^GameState) {
 
 	world.chunk_count = len(world.chunk_hash)
 
-	for chunk in &world.chunk_hash
+	for &chunk in world.chunk_hash
 	{
 		chunk        = {}
 		chunk.pos.x  = TILE_CHUNK_UNINITILIZED;

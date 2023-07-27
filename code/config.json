@@ -1,0 +1,9 @@
+//TODO:
+screen_width  : 1500
+screen_height : 1000
+ambience      : [0.2, 0.2, 0.2, 1.0]
+debug_moded   : true
+level_files : [
+    "level1.json",
+    "level2.json",
+]

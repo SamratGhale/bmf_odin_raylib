@@ -4,6 +4,9 @@ import rl "vendor:raylib"
 import "core:fmt"
 import "core:math/linalg"
 
+FLT_MAX :: 340282346638528859811704183484516925440.0
+
+
 LowEntity :: struct {
 	pos: WorldPos,
 	sim: SimEntity,
@@ -39,6 +42,7 @@ FaceDirection :: enum {
 	DOWN,
 	RIGHT,
 }
+total_light_count : u32= 0
 
 SimEntity :: struct{
 	type      : EntityType,
@@ -53,8 +57,12 @@ SimEntity :: struct{
 	flags     : u32,
 
 //only pointer because we just wanna make one copy unless in exceptional case 
-	model     : ^rl.Model,
+	model     : AssetTypeModel,
 	texture   : ^rl.Texture,  
+	light_index: u32,
+
+	bound_box : rl.BoundingBox,
+	coll_box     : rl.RayCollision,
 
 	//add tex handle
 }
@@ -68,6 +76,7 @@ EntityType::enum
 	entity_type_wall,
 	entity_type_house,
 	entity_type_grimchild,
+	entity_type_stone,
 };
 
 
@@ -97,7 +106,7 @@ add_low_entity :: proc(game_state: ^GameState, type: EntityType, pos: WorldPos)-
 	return result;
 }
 
-add_wall :: proc(game_state: ^GameState, pos: WorldPos, model: ^rl.Model)->AddEntityResult{
+add_wall :: proc(game_state: ^GameState, pos: WorldPos, model: AssetTypeModel )->AddEntityResult{
 	chunk := get_world_chunk(game_state.world, pos.chunk)
 
 	result := add_low_entity(game_state, .entity_type_wall, pos)
@@ -106,16 +115,37 @@ add_wall :: proc(game_state: ^GameState, pos: WorldPos, model: ^rl.Model)->AddEn
 	result.low.sim.collides = true
 	result.low.sim.model    = model 
 
+
+	models := game_state.asset.models
+
+	result.low.sim.bound_box = rl.GetModelBoundingBox(models[result.low.sim.model])
+	//result.low.sim.coll_box  = rl.GetRayCollisionBox(models[result.low.sim.model])
+
 	return result;
 }
 
-add_house:: proc(game_state: ^GameState, pos: WorldPos, model: ^rl.Model)->AddEntityResult{
+add_stone:: proc(game_state: ^GameState, pos: WorldPos, model: AssetTypeModel)->AddEntityResult{
+	chunk := get_world_chunk(game_state.world, pos.chunk)
+
+	result := add_low_entity(game_state, .entity_type_stone, pos)
+	result.low.sim.width    = 10.0
+	result.low.sim.height   = 10.0
+	result.low.sim.collides = true
+	result.low.sim.model    = model 
+
+	models := game_state.asset.models
+	result.low.sim.bound_box = rl.GetModelBoundingBox(models[result.low.sim.model])
+	return result;
+}
+
+
+add_house:: proc(game_state: ^GameState, pos: WorldPos, model: AssetTypeModel )->AddEntityResult{
 	chunk := get_world_chunk(game_state.world, pos.chunk)
 
 	result := add_low_entity(game_state, .entity_type_house, pos)
 	result.low.sim.width    = 1.0
 	result.low.sim.height   = 1.0
-	result.low.sim.collides = true
+	result.low.sim.collides = false
 	result.low.sim.model    = model 
 
 	return result;
@@ -129,7 +159,32 @@ add_player :: proc(game_state: ^GameState, pos: WorldPos)->AddEntityResult{
 	result.low.sim.height   = 1.0
 	result.low.sim.collides = true
 
-	result.low.sim.model   = &player_model
+	asset := game_state.asset
+
+	result.low.sim.model       = .PLAYER
+	result.low.sim.light_index = total_light_count
+	asset.lights[total_light_count]  = create_light(.POINT, result.low.sim.pos, {}, rl.WHITE, asset.shader)
+	total_light_count += 1
+	models := game_state.asset.models
+	result.low.sim.bound_box = rl.GetModelBoundingBox(models[result.low.sim.model])
+	return result;
+}
+
+add_grimchild :: proc(game_state: ^GameState, pos: WorldPos)->AddEntityResult{
+	chunk := get_world_chunk(game_state.world, pos.chunk)
+
+	result := add_low_entity(game_state, .entity_type_grimchild, pos)
+	result.low.sim.width    = 1.0
+	result.low.sim.height   = 1.0
+	result.low.sim.collides = false
+
+	asset := game_state.asset
+	result.low.sim.model   = .GRIMCHILD
+	result.low.sim.light_index = total_light_count
+	asset.lights[total_light_count] = create_light(.POINT, result.low.sim.pos, {}, rl.BLUE, asset.shader)
+	//total_light_count += 1
+	models := game_state.asset.models
+	result.low.sim.bound_box = rl.GetModelBoundingBox(models[result.low.sim.model])
 	return result;
 }
 
@@ -188,8 +243,43 @@ move_entity :: proc(
 	ddp *= move_spec.speed
 	ddp += -move_spec.drag * entity.dP
 	delta := (0.5 * ddp * dt * dt + entity.dP * dt)
-	entity.pos += delta
-	entity.dP = ddp * dt + entity.dP
+
+	ray :rl.Ray={} 
+	ray.position  = entity.pos
+	ray.direction = delta 
+
+	hit := false
+
+	nearest_collision : rl.RayCollision;
+	models := &game_state.asset.models
+	for i in 0..<sim_region.entity_count{
+		test_entity := sim_region.entities[i]
+
+		if(test_entity.storage_index != entity.storage_index){
+			if(test_entity.collides){
+				tower_box := test_entity.bound_box
+				tower_box.min += test_entity.pos
+				tower_box.max += test_entity.pos
+
+				box_hit_info := rl.GetRayCollisionBox(ray, tower_box)
+
+				if(box_hit_info.hit && (abs(box_hit_info.distance) <= 1))
+				{
+					nearest_collision = box_hit_info
+					hit = true
+				}
+			}
+		}
+	}
+
+	if(!hit){
+		entity.pos += delta
+		entity.dP = ddp * dt + entity.dP
+	}else{
+		//entity.pos -= nearest_collision.point
+		entity.dP -= (ddp * dt + entity.dP)
+		//entity.dP = ddp * dt + entity.dP
+	}
 }
 
 map_position_to_face ::proc (game_state: ^GameState, pos : vec3)-> vec3{

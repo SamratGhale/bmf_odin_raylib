@@ -1,13 +1,16 @@
+leve.json files
+menu
+
+
+manage debug features
 level switcher
 forg of war levels
 back ground effects
 shadow mapping
 code orgamization
 add more enttities
-arbitary sized channels
+arbitary sized chunks
 
 
-Use raylib's collision of models and (tiles)?
-BUGS:
-when player moves from one chunk to another a memory gets allocated
-but it dosen't happen to the same chunk again and again
+make gliding
+
