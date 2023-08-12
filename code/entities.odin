@@ -60,9 +60,12 @@ SimEntity :: struct{
 	model     : AssetTypeModel,
 	texture   : ^rl.Texture,  
 	light_index: u32,
+<<<<<<< HEAD
 
 	bound_box : rl.BoundingBox,
 	coll_box     : rl.RayCollision,
+=======
+>>>>>>> c60edaae515706ebfb94df981545583986655d4b
 
 	//add tex handle
 }
@@ -124,7 +127,11 @@ add_wall :: proc(game_state: ^GameState, pos: WorldPos, model: AssetTypeModel )-
 	return result;
 }
 
+<<<<<<< HEAD
 add_stone:: proc(game_state: ^GameState, pos: WorldPos, model: AssetTypeModel)->AddEntityResult{
+=======
+add_stone:: proc(game_state: ^GameState, pos: WorldPos, model: ^rl.Model)->AddEntityResult{
+>>>>>>> c60edaae515706ebfb94df981545583986655d4b
 	chunk := get_world_chunk(game_state.world, pos.chunk)
 
 	result := add_low_entity(game_state, .entity_type_stone, pos)
@@ -132,14 +139,21 @@ add_stone:: proc(game_state: ^GameState, pos: WorldPos, model: AssetTypeModel)->
 	result.low.sim.height   = 10.0
 	result.low.sim.collides = true
 	result.low.sim.model    = model 
+<<<<<<< HEAD
 
 	models := game_state.asset.models
 	result.low.sim.bound_box = rl.GetModelBoundingBox(models[result.low.sim.model])
+=======
+>>>>>>> c60edaae515706ebfb94df981545583986655d4b
 	return result;
 }
 
 
+<<<<<<< HEAD
 add_house:: proc(game_state: ^GameState, pos: WorldPos, model: AssetTypeModel )->AddEntityResult{
+=======
+add_house:: proc(game_state: ^GameState, pos: WorldPos, model: ^rl.Model)->AddEntityResult{
+>>>>>>> c60edaae515706ebfb94df981545583986655d4b
 	chunk := get_world_chunk(game_state.world, pos.chunk)
 
 	result := add_low_entity(game_state, .entity_type_house, pos)
@@ -159,6 +173,7 @@ add_player :: proc(game_state: ^GameState, pos: WorldPos)->AddEntityResult{
 	result.low.sim.height   = 1.0
 	result.low.sim.collides = true
 
+<<<<<<< HEAD
 	asset := game_state.asset
 
 	result.low.sim.model       = .PLAYER
@@ -167,6 +182,12 @@ add_player :: proc(game_state: ^GameState, pos: WorldPos)->AddEntityResult{
 	total_light_count += 1
 	models := game_state.asset.models
 	result.low.sim.bound_box = rl.GetModelBoundingBox(models[result.low.sim.model])
+=======
+	result.low.sim.model       = &player_model
+	result.low.sim.light_index = total_light_count
+	lights[total_light_count]  = create_light(.POINT, result.low.sim.pos, {}, rl.WHITE, shader)
+	total_light_count += 1
+>>>>>>> c60edaae515706ebfb94df981545583986655d4b
 	return result;
 }
 
@@ -176,6 +197,7 @@ add_grimchild :: proc(game_state: ^GameState, pos: WorldPos)->AddEntityResult{
 	result := add_low_entity(game_state, .entity_type_grimchild, pos)
 	result.low.sim.width    = 1.0
 	result.low.sim.height   = 1.0
+<<<<<<< HEAD
 	result.low.sim.collides = false
 
 	asset := game_state.asset
@@ -185,6 +207,13 @@ add_grimchild :: proc(game_state: ^GameState, pos: WorldPos)->AddEntityResult{
 	//total_light_count += 1
 	models := game_state.asset.models
 	result.low.sim.bound_box = rl.GetModelBoundingBox(models[result.low.sim.model])
+=======
+	result.low.sim.collides = true
+	result.low.sim.model   = &grimchild_model
+	result.low.sim.light_index = total_light_count
+	lights[total_light_count] = create_light(.POINT, result.low.sim.pos, {}, rl.BLUE, shader)
+	//total_light_count += 1
+>>>>>>> c60edaae515706ebfb94df981545583986655d4b
 	return result;
 }
 
@@ -251,13 +280,20 @@ move_entity :: proc(
 	hit := false
 
 	nearest_collision : rl.RayCollision;
+<<<<<<< HEAD
 	models := &game_state.asset.models
+=======
+>>>>>>> c60edaae515706ebfb94df981545583986655d4b
 	for i in 0..<sim_region.entity_count{
 		test_entity := sim_region.entities[i]
 
 		if(test_entity.storage_index != entity.storage_index){
 			if(test_entity.collides){
+<<<<<<< HEAD
 				tower_box := test_entity.bound_box
+=======
+				tower_box := rl.GetModelBoundingBox(test_entity.model^)
+>>>>>>> c60edaae515706ebfb94df981545583986655d4b
 				tower_box.min += test_entity.pos
 				tower_box.max += test_entity.pos
 

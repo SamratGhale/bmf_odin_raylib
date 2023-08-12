@@ -70,6 +70,7 @@ main :: proc(){
 	platform.running = true
 
 
+<<<<<<< HEAD
 	for !WindowShouldClose(){
 		switch (platform.game_mode){
 			case .GAME_MODE_DEBUG:{
@@ -86,6 +87,10 @@ main :: proc(){
 				update_game()
 			}
 		}
+=======
+	for ! WindowShouldClose(){
+		update_game();
+>>>>>>> c60edaae515706ebfb94df981545583986655d4b
 	}
 }
 

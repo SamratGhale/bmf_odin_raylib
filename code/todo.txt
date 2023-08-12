@@ -12,5 +12,14 @@ add more enttities
 arbitary sized chunks
 
 
+<<<<<<< HEAD
 make gliding
 
+=======
+/// Use raylib's collision of models and (tiles)?
+make gliding
+
+BUGS:
+when player moves from one chunk to another a memory gets allocated
+but it dosen't happen to the same chunk again and again
+>>>>>>> c60edaae515706ebfb94df981545583986655d4b
